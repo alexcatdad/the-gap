@@ -36,7 +36,7 @@ export class GraphBuilder {
 	 */
 	async buildCompleteGraph(projectRoot: string): Promise<CodeGraph> {
 		this.nodes.clear();
-		this.edges.clear();
+		this.edges = [];
 		this.fileParseResults.clear();
 
 		// Read all indexed files from symbols.json
