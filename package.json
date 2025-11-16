@@ -1,15 +1,50 @@
 {
 	"name": "the-gap",
+	"version": "0.1.0",
+	"description": "A high-performance, offline-first coding agent for local model inference",
 	"module": "index.ts",
 	"type": "module",
 	"private": true,
-    "scripts": {
-        "start": "bun run src/cli/index.ts",
-        "dev": "bun run src/cli/index.ts",
-        "lint": "bunx biome check src",
-        "format": "bunx biome format --write src",
-        "test": "vitest"
-    },
+	"main": "dist/index.js",
+	"bin": {
+		"the-gap": "./dist/index.js"
+	},
+	"keywords": [
+		"ai",
+		"llm",
+		"code-assistant",
+		"local-first",
+		"offline",
+		"rag",
+		"knowledge-graph",
+		"lm-studio",
+		"bun",
+		"typescript"
+	],
+	"author": "The Gap Contributors",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/yourusername/the-gap.git"
+	},
+	"bugs": {
+		"url": "https://github.com/yourusername/the-gap/issues"
+	},
+	"homepage": "https://github.com/yourusername/the-gap#readme",
+	"engines": {
+		"bun": ">=1.0.0"
+	},
+	"scripts": {
+		"start": "bun run src/cli/index.ts",
+		"dev": "bun run src/cli/index.ts",
+		"lint": "bunx biome check src",
+		"format": "bunx biome format --write src",
+		"test": "vitest",
+		"test:watch": "vitest --watch",
+		"test:coverage": "vitest --coverage",
+		"build": "bun build index.ts --outdir ./dist --target bun",
+		"prepublishOnly": "bun run lint && bun test && bun run build"
+	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.5",
 		"@types/bun": "latest",
@@ -17,7 +52,7 @@
 		"vitest": "4.0.9"
 	},
 	"peerDependencies": {
-		"typescript": "^5"
+		"typescript": "^5.9.3"
 	},
 	"dependencies": {
 		"@lmstudio/sdk": "1.5.0",

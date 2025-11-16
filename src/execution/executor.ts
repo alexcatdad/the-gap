@@ -1,4 +1,5 @@
 import type { TaskStep } from '../planning/planner.ts';
+import { ExecutionError } from '../utils/errors.ts';
 
 export interface ExecutionResult {
 	success: boolean;
@@ -8,6 +9,34 @@ export interface ExecutionResult {
 
 export class CommandExecutor {
 	async executeStep(step: TaskStep, approveFirst = true): Promise<ExecutionResult> {
+		// Validate step input
+		if (!step || typeof step !== 'object') {
+			throw new ExecutionError(
+				'Invalid step provided',
+				'',
+				0,
+				'Provide a valid TaskStep object',
+			);
+		}
+
+		if (!step.name || step.name.trim().length === 0) {
+			throw new ExecutionError(
+				'Step name is required',
+				'',
+				0,
+				'Provide a non-empty step name',
+			);
+		}
+
+		if (!step.description || step.description.trim().length === 0) {
+			throw new ExecutionError(
+				'Step description is required',
+				'',
+				0,
+				'Provide a non-empty step description',
+			);
+		}
+
 		console.log(`\n📋 Step: ${step.name}`);
 		console.log(`📝 Description: ${step.description}`);
 
@@ -56,9 +85,18 @@ export class CommandExecutor {
 				)
 				.join('\n\n');
 
+			const hasErrors = results.some((r) => !r.success);
+			const combinedError = hasErrors
+				? results
+						.filter((r) => !r.success)
+						.map((r) => r.error)
+						.join('; ')
+				: undefined;
+
 			return {
 				success: overallSuccess,
 				output: combinedOutput,
+				error: combinedError,
 			};
 		}
 
@@ -70,6 +108,32 @@ export class CommandExecutor {
 	}
 
 	private async executeCommand(cmd: string): Promise<ExecutionResult> {
+		// Validate command input
+		if (!cmd || cmd.trim().length === 0) {
+			return {
+				success: false,
+				output: '',
+				error: 'Cannot execute empty command',
+			};
+		}
+
+		// Basic command sanitization - warn about potentially dangerous commands
+		const dangerousPatterns = [
+			/rm\s+-rf\s+\//, // rm -rf /
+			/:\(\)\{\s*:\|:&\s*\};:/, // fork bomb
+			/>\s*\/dev\/sd[a-z]/, // writing to disk devices
+		];
+
+		for (const pattern of dangerousPatterns) {
+			if (pattern.test(cmd)) {
+				return {
+					success: false,
+					output: '',
+					error: 'Command rejected: potentially dangerous pattern detected',
+				};
+			}
+		}
+
 		try {
 			const process = Bun.spawn(cmd.split(' '), {
 				stdout: 'pipe',
@@ -96,10 +160,11 @@ export class CommandExecutor {
 				};
 			}
 		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
 			return {
 				success: false,
 				output: '',
-				error: `Failed to execute command: ${error}`,
+				error: `Failed to execute command: ${errorMessage}`,
 			};
 		}
 	}
