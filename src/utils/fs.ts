@@ -24,3 +24,17 @@ export async function readJson<T>(path: string, fallback: T): Promise<T> {
 		return fallback;
 	}
 }
+
+export async function readFile(path: string): Promise<string> {
+	const file = Bun.file(path);
+	return await file.text();
+}
+
+export async function exists(path: string): Promise<boolean> {
+	try {
+		const file = Bun.file(path);
+		return await file.exists();
+	} catch {
+		return false;
+	}
+}
