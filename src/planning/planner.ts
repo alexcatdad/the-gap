@@ -1,4 +1,5 @@
 import { LmStudioClient } from '../llm/lmstudioClient.ts';
+import { LLMError } from '../utils/errors.ts';
 
 export interface TaskStep {
 	name: string;
@@ -19,6 +20,19 @@ export class TaskPlanner {
 	}
 
 	async createPlan(taskDescription: string, projectContext?: string): Promise<Plan> {
+		// Validate input
+		if (!taskDescription || taskDescription.trim().length === 0) {
+			throw new LLMError(
+				'Cannot create plan for empty task description',
+				'task-planner',
+				'Provide a non-empty task description',
+			);
+		}
+
+		if (taskDescription.length > 10000) {
+			console.warn('Task description is very long, truncating to 10000 characters');
+			taskDescription = taskDescription.substring(0, 10000);
+		}
 		const systemPrompt = `You are an expert software engineer tasked with breaking down user requests into structured, actionable steps.
 
 Your goal is to create a clear, sequential plan that:
@@ -59,6 +73,11 @@ Create a structured plan to accomplish this task.`;
 
 	private parsePlanResponse(response: string): Plan {
 		try {
+			// Validate response input
+			if (!response || response.trim().length === 0) {
+				throw new Error('Empty response from LLM');
+			}
+
 			// Try to extract JSON from the response
 			const jsonMatch = response.match(/\{[\s\S]*\}/);
 			if (!jsonMatch) {
@@ -66,10 +85,41 @@ Create a structured plan to accomplish this task.`;
 			}
 
 			const parsed = JSON.parse(jsonMatch[0]) as { steps: TaskStep[] };
+
+			// Validate plan structure
+			if (!parsed.steps || !Array.isArray(parsed.steps)) {
+				throw new Error('Invalid plan structure: steps must be an array');
+			}
+
+			if (parsed.steps.length === 0) {
+				throw new Error('Plan must contain at least one step');
+			}
+
+			// Validate each step
+			for (const step of parsed.steps) {
+				if (!step.name || step.name.trim().length === 0) {
+					throw new Error('Step name is required');
+				}
+				if (!step.description || step.description.trim().length === 0) {
+					throw new Error('Step description is required');
+				}
+				if (!Array.isArray(step.files_affected)) {
+					step.files_affected = [];
+				}
+				if (step.commands && !Array.isArray(step.commands)) {
+					step.commands = [];
+				}
+			}
+
 			return { steps: parsed.steps };
 		} catch (error) {
-			console.warn('Failed to parse plan response:', error);
-			throw new Error('Invalid plan format from LLM');
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			console.warn('Failed to parse plan response:', errorMessage);
+			throw new LLMError(
+				'Invalid plan format from LLM',
+				'task-planner',
+				'Check LLM response format and try again',
+			);
 		}
 	}
 

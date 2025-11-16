@@ -23,10 +23,14 @@ export interface CodeGraph {
 	edges: GraphEdge[];
 }
 
-const DATA_DIR = join(process.cwd(), '.the-gap');
-const GRAPH_JSON = join(DATA_DIR, 'graph.json');
-
 export class GraphBuilder {
+	private get dataDir(): string {
+		return join(process.cwd(), '.the-gap');
+	}
+
+	private get graphJsonPath(): string {
+		return join(this.dataDir, 'graph.json');
+	}
 	private nodes: Map<string, GraphNode> = new Map();
 	private edges: GraphEdge[] = [];
 	private fileParseResults: Map<string, ParseResult> = new Map();
@@ -41,7 +45,8 @@ export class GraphBuilder {
 
 		// Read all indexed files from symbols.json
 		type MinimalSymbol = { filePath: string };
-		const symbols = await readJson<MinimalSymbol[]>(join(DATA_DIR, 'symbols.json'), []);
+		const symbolsPath = join(this.dataDir, 'symbols.json');
+		const symbols = await readJson<MinimalSymbol[]>(symbolsPath, []);
 		const files = Array.from(new Set(symbols.map((s) => s.filePath)));
 
 		// Phase 1: Parse all files and extract symbols, imports, and calls
@@ -57,8 +62,8 @@ export class GraphBuilder {
 			edges: this.edges,
 		};
 
-		await ensureDir(DATA_DIR);
-		await writeJson(GRAPH_JSON, graph);
+		await ensureDir(this.dataDir);
+		await writeJson(this.graphJsonPath, graph);
 		return graph;
 	}
 
@@ -71,6 +76,12 @@ export class GraphBuilder {
 
 	private async parseAndIndexFile(filePath: string): Promise<void> {
 		try {
+			// Validate file path
+			if (!filePath || filePath.trim().length === 0) {
+				console.warn('Empty file path provided, skipping');
+				return;
+			}
+
 			const fullPath = resolve(filePath);
 
 			// Check if file exists before reading
@@ -80,6 +91,13 @@ export class GraphBuilder {
 			}
 
 			const content = await readFile(fullPath);
+
+			// Skip empty files
+			if (content.trim().length === 0) {
+				console.log(`Skipping empty file: ${filePath}`);
+				return;
+			}
+
 			const parseResult = parseFileComplete(filePath, content);
 			this.fileParseResults.set(filePath, parseResult);
 
@@ -264,7 +282,7 @@ export class GraphBuilder {
 
 	async loadGraph(): Promise<CodeGraph | null> {
 		try {
-			const graph = await readJson<CodeGraph>(GRAPH_JSON, null as unknown as CodeGraph);
+			const graph = await readJson<CodeGraph>(this.graphJsonPath, null as unknown as CodeGraph);
 			if (graph) {
 				// Rebuild internal structures for querying
 				this.nodes.clear();

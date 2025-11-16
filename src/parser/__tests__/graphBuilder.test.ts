@@ -6,43 +6,45 @@ import { GraphBuilder } from '../graphBuilder.ts';
 
 describe('GraphBuilder', () => {
 	let builder: GraphBuilder;
-	const testDir = join(process.cwd(), '.test-graph-builder');
-	const gapDir = join(testDir, '.the-gap');
 	const originalCwd = process.cwd();
+	const testDir = join(originalCwd, '.test-graph-builder');
+	const gapDir = join(testDir, '.the-gap');
 
 	beforeEach(async () => {
+		// Always start from original directory
+		process.chdir(originalCwd);
+
 		builder = new GraphBuilder();
+
+		// Create test directory structure
+		await ensureDir(testDir);
 		await ensureDir(gapDir);
 
-		// Create test source files
-		const srcDir = join(testDir, 'src');
+		// Change to test directory
+		process.chdir(testDir);
+
+		// Create test source files with relative paths
+		const srcDir = 'src';
 		await ensureDir(srcDir);
 
-		const test1Content = `
-import { helper } from './test2';
+		const test1Content = `import { helper } from './test2';
 
 export function main() {
 	helper();
-}
-`;
+}`;
 
-		const test2Content = `
-export function helper() {
+		const test2Content = `export function helper() {
 	console.log('help');
-}
-`;
+}`;
 
 		await Bun.write(join(srcDir, 'test1.ts'), test1Content);
 		await Bun.write(join(srcDir, 'test2.ts'), test2Content);
 
-		// Create symbols.json
-		await writeJson(join(gapDir, 'symbols.json'), [
-			{ filePath: join(srcDir, 'test1.ts') },
-			{ filePath: join(srcDir, 'test2.ts') },
+		// Create symbols.json with relative paths
+		await writeJson(join('.the-gap', 'symbols.json'), [
+			{ filePath: 'src/test1.ts' },
+			{ filePath: 'src/test2.ts' },
 		]);
-
-		// Change to test directory for relative paths
-		process.chdir(testDir);
 	});
 
 	afterEach(async () => {
@@ -56,14 +58,14 @@ export function helper() {
 
 	describe('buildCompleteGraph', () => {
 		it('should build graph with nodes and edges', async () => {
-			const graph = await builder.buildCompleteGraph(testDir);
+			const graph = await builder.buildCompleteGraph(process.cwd());
 
 			expect(graph.nodes.length).toBeGreaterThan(0);
 			expect(graph.edges.length).toBeGreaterThan(0);
 		});
 
 		it('should create file nodes', async () => {
-			const graph = await builder.buildCompleteGraph(testDir);
+			const graph = await builder.buildCompleteGraph(process.cwd());
 
 			const fileNodes = graph.nodes.filter((n) => n.type === 'file');
 			expect(fileNodes.length).toBeGreaterThanOrEqual(2);
@@ -71,7 +73,7 @@ export function helper() {
 		});
 
 		it('should create function nodes', async () => {
-			const graph = await builder.buildCompleteGraph(testDir);
+			const graph = await builder.buildCompleteGraph(process.cwd());
 
 			const funcNodes = graph.nodes.filter((n) => n.type === 'function');
 			expect(funcNodes.length).toBeGreaterThan(0);
@@ -82,21 +84,21 @@ export function helper() {
 		});
 
 		it('should create import edges', async () => {
-			const graph = await builder.buildCompleteGraph(testDir);
+			const graph = await builder.buildCompleteGraph(process.cwd());
 
 			const importEdges = graph.edges.filter((e) => e.type === 'imports');
 			expect(importEdges.length).toBeGreaterThan(0);
 		});
 
 		it('should create contains edges', async () => {
-			const graph = await builder.buildCompleteGraph(testDir);
+			const graph = await builder.buildCompleteGraph(process.cwd());
 
 			const containsEdges = graph.edges.filter((e) => e.type === 'contains');
 			expect(containsEdges.length).toBeGreaterThan(0);
 		});
 
 		it('should handle exported functions', async () => {
-			const graph = await builder.buildCompleteGraph(testDir);
+			const graph = await builder.buildCompleteGraph(process.cwd());
 
 			const exportedFuncs = graph.nodes.filter((n) => n.type === 'function' && n.exported === true);
 			expect(exportedFuncs.length).toBeGreaterThan(0);
@@ -106,7 +108,7 @@ export function helper() {
 	describe('loadGraph', () => {
 		it('should load graph from disk', async () => {
 			// First build a graph
-			await builder.buildCompleteGraph(testDir);
+			await builder.buildCompleteGraph(process.cwd());
 
 			// Create new builder and load
 			const newBuilder = new GraphBuilder();
@@ -117,20 +119,26 @@ export function helper() {
 		});
 
 		it('should return null if graph does not exist', async () => {
+			// Save current dir
+			const currentDir = process.cwd();
+
 			// Use a fresh directory without graph
 			const emptyDir = join(testDir, 'empty');
-			await ensureDir(join(emptyDir, '.the-gap'));
+			await ensureDir(emptyDir);
 			process.chdir(emptyDir);
 
 			const newBuilder = new GraphBuilder();
 			const loaded = await newBuilder.loadGraph();
 			expect(loaded).toBeNull();
+
+			// Restore directory
+			process.chdir(currentDir);
 		});
 	});
 
 	describe('graph queries', () => {
 		it('should get callers of a function', async () => {
-			const graph = await builder.buildCompleteGraph(testDir);
+			const graph = await builder.buildCompleteGraph(process.cwd());
 			await builder.loadGraph();
 
 			// Find the helper function
@@ -142,7 +150,7 @@ export function helper() {
 		});
 
 		it('should get callees of a function', async () => {
-			const graph = await builder.buildCompleteGraph(testDir);
+			const graph = await builder.buildCompleteGraph(process.cwd());
 			await builder.loadGraph();
 
 			const mainNode = graph.nodes.find((n) => n.type === 'function' && n.label === 'main');
@@ -153,7 +161,7 @@ export function helper() {
 		});
 
 		it('should get imports of a file', async () => {
-			const graph = await builder.buildCompleteGraph(testDir);
+			const graph = await builder.buildCompleteGraph(process.cwd());
 			await builder.loadGraph();
 
 			const test1File = graph.nodes.find((n) => n.type === 'file' && n.path?.includes('test1'));
@@ -164,7 +172,7 @@ export function helper() {
 		});
 
 		it('should get importers of a file', async () => {
-			const graph = await builder.buildCompleteGraph(testDir);
+			const graph = await builder.buildCompleteGraph(process.cwd());
 			await builder.loadGraph();
 
 			const test2File = graph.nodes.find((n) => n.type === 'file' && n.path?.includes('test2'));
@@ -177,23 +185,23 @@ export function helper() {
 
 	describe('edge cases', () => {
 		it('should handle empty files', async () => {
-			const srcDir = join(testDir, 'src');
+			const srcDir = 'src';
 			await Bun.write(join(srcDir, 'empty.ts'), '');
 
-			await writeJson(join(gapDir, 'symbols.json'), [{ filePath: join(srcDir, 'empty.ts') }]);
+			await writeJson(join('.the-gap', 'symbols.json'), [{ filePath: 'src/empty.ts' }]);
 
-			const graph = await builder.buildCompleteGraph(testDir);
+			const graph = await builder.buildCompleteGraph(process.cwd());
 			expect(graph.nodes).toBeDefined();
 			expect(graph.edges).toBeDefined();
 		});
 
 		it('should handle files with syntax errors gracefully', async () => {
-			const srcDir = join(testDir, 'src');
+			const srcDir = 'src';
 			await Bun.write(join(srcDir, 'invalid.ts'), 'invalid typescript }{][');
 
-			await writeJson(join(gapDir, 'symbols.json'), [{ filePath: join(srcDir, 'invalid.ts') }]);
+			await writeJson(join('.the-gap', 'symbols.json'), [{ filePath: 'src/invalid.ts' }]);
 
-			const graph = await builder.buildCompleteGraph(testDir);
+			const graph = await builder.buildCompleteGraph(process.cwd());
 			// Should not crash, just skip the invalid file
 			expect(graph.nodes).toBeDefined();
 		});

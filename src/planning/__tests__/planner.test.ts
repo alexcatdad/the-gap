@@ -102,11 +102,10 @@ ${JSON.stringify(mockClient.responseJson)}
 			expect(plan.steps).toHaveLength(2);
 		});
 
-		it('should handle empty task description', async () => {
-			const plan = await planner.createPlan('');
-
-			expect(plan.steps).toBeDefined();
-			expect(plan.steps.length).toBeGreaterThan(0);
+		it('should reject empty task description', async () => {
+			await expect(planner.createPlan('')).rejects.toThrow(
+				'Cannot create plan for empty task description',
+			);
 		});
 	});
 
